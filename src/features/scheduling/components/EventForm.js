@@ -1,54 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import { getFromLocalStorage } from '../../../utils/localStorageHelpers';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getGroupMembers } from '../../../api/groupMemberApi';
+import { getAllUsers } from '../../../api/userApi'; // Import getAllUsers
 
-const EventForm = ({ initialEvent, onSave, allEvents }) => {
+// Mocking toast for now
+const toast = {
+    success: (message) => console.log(`SUCCESS: ${message}`),
+    error: (message) => console.error(`ERROR: ${message}`),
+};
+
+const EventForm = ({ initialEvent, onSave, allEvents, allGroups, allUsers }) => { // Changed allCustomers to allUsers
   const [title, setTitle] = useState(initialEvent ? initialEvent.title : '');
   const [start, setStart] = useState(initialEvent ? new Date(initialEvent.start).toISOString().slice(0, 16) : '');
   const [end, setEnd] = useState(initialEvent ? new Date(initialEvent.end).toISOString().slice(0, 16) : '');
   const [priority, setPriority] = useState(initialEvent ? initialEvent.priority : 'Normal');
   const [selectedGroup, setSelectedGroup] = useState(initialEvent ? initialEvent.groupId : '');
   const [selectedAttendees, setSelectedAttendees] = useState(initialEvent ? initialEvent.attendees || [] : []);
-
-  const [allGroups, setAllGroups] = useState([]);
-  const [allCustomers, setAllCustomers] = useState([]);
-  const [customerGroupAssociations, setCustomerGroupAssociations] = useState([]);
+  const [groupAttendees, setGroupAttendees] = useState([]);
+  const [loadingAttendees, setLoadingAttendees] = useState(false);
 
   useEffect(() => {
-    setAllGroups(getFromLocalStorage('groups') || []);
-    setAllCustomers(getFromLocalStorage('customers') || []);
-    setCustomerGroupAssociations(getFromLocalStorage('customerGroupAssociations') || []);
-
     if (initialEvent) {
-      setTitle(initialEvent.title);
-      setStart(new Date(initialEvent.start).toISOString().slice(0, 16));
-      setEnd(new Date(initialEvent.end).toISOString().slice(0, 16));
+      setTitle(initialEvent.title || '');
+      // Ensure dates are formatted correctly for datetime-local input
+      setStart(initialEvent.startDate ? new Date(initialEvent.startDate).toISOString().slice(0, 16) : '');
+      setEnd(initialEvent.endDate ? new Date(initialEvent.endDate).toISOString().slice(0, 16) : '');
       setPriority(initialEvent.priority || 'Normal');
       setSelectedGroup(initialEvent.groupId || '');
       setSelectedAttendees(initialEvent.attendees || []);
     }
   }, [initialEvent]);
 
+  const fetchGroupAttendees = useCallback(async (groupId) => {
+    if (!groupId) {
+      setGroupAttendees([]);
+      return;
+    }
+    setLoadingAttendees(true);
+    try {
+      const response = await getGroupMembers({ groupId: groupId });
+      const members = response.data.data.items || [];
+      // Map GroupMembers (which have UserId) to ApplicationUser objects for display
+      const attendeesUsers = members.map(member => {
+        const user = Array.isArray(allUsers) ? allUsers.find(u => u.id === member.userId) : undefined; // Ensure allUsers is an array
+        return user ? { ...user, groupMemberId: member.id } : null;
+      }).filter(Boolean);
+      setGroupAttendees(attendeesUsers);
+    } catch (error) {
+      console.error("Failed to fetch group members:", error);
+      toast.error("Failed to load group members.");
+    } finally {
+      setLoadingAttendees(false);
+    }
+  }, [allUsers]); // Changed from allCustomers
+
+  useEffect(() => {
+    fetchGroupAttendees(selectedGroup);
+  }, [selectedGroup, fetchGroupAttendees]);
+
   const handleAttendeeChange = (e) => {
-    const customerId = parseInt(e.target.value);
+    const applicationUserId = e.target.value;
     const isChecked = e.target.checked;
 
     setSelectedAttendees((prevAttendees) => {
       if (isChecked) {
-        return [...prevAttendees, customerId];
+        return [...prevAttendees, applicationUserId];
       } else {
-        return prevAttendees.filter((id) => id !== customerId);
+        return prevAttendees.filter((id) => id !== applicationUserId);
       }
     });
-  };
-
-  const getCustomersInSelectedGroup = () => {
-    if (!selectedGroup) return [];
-    const groupCustomersIds = customerGroupAssociations
-      .filter(assoc => assoc.groupId === parseInt(selectedGroup))
-      .map(assoc => assoc.customerId);
-    return allCustomers.filter(customer => groupCustomersIds.includes(customer.id));
   };
 
   const handleSubmit = (e) => {
@@ -66,7 +85,7 @@ const EventForm = ({ initialEvent, onSave, allEvents }) => {
       return;
     }
 
-    // Check for overlapping events
+    // Check for overlapping events (still client-side for now)
     const newEventStart = startDate.getTime();
     const newEventEnd = endDate.getTime();
 
@@ -89,13 +108,12 @@ const EventForm = ({ initialEvent, onSave, allEvents }) => {
     }
 
     const eventData = {
-      id: initialEvent ? initialEvent.id : Date.now(),
       title,
-      start: new Date(start),
-      end: new Date(end),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
       priority,
-      groupId: parseInt(selectedGroup),
-      attendees: selectedAttendees,
+      groupId: selectedGroup,
+      attendees: selectedAttendees, // These are ApplicationUserIds
     };
     onSave(eventData);
     setTitle('');
@@ -186,19 +204,25 @@ const EventForm = ({ initialEvent, onSave, allEvents }) => {
               Select Attendees (from selected group)
             </label>
             <div className="border rounded p-2 max-h-32 overflow-y-auto">
-              {getCustomersInSelectedGroup().map(customer => (
-                <div key={customer.id} className="flex items-center mb-2">
-                  <input
-                    type="checkbox"
-                    id={`attendee-${customer.id}`}
-                    value={customer.id}
-                    checked={(selectedAttendees || []).includes(customer.id)}
-                    onChange={handleAttendeeChange}
-                    className="mr-2"
-                  />
-                  <label htmlFor={`attendee-${customer.id}`} className="text-gray-700">{customer.name}</label>
-                </div>
-              ))}
+              {loadingAttendees ? (
+                <p>Loading attendees...</p>
+              ) : groupAttendees.length === 0 ? (
+                <p>No attendees found for this group.</p>
+              ) : (
+                groupAttendees.map(user => (
+                  <div key={user.id} className="flex items-center mb-2">
+                    <input
+                      type="checkbox"
+                      id={`attendee-${user.id}`}
+                      value={user.id} // Use user.id (ApplicationUserId)
+                      checked={(selectedAttendees || []).includes(user.id)}
+                      onChange={handleAttendeeChange}
+                      className="mr-2"
+                    />
+                    <label htmlFor={`attendee-${user.id}`} className="text-gray-700">{user.userName} ({user.email})</label>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -209,7 +233,6 @@ const EventForm = ({ initialEvent, onSave, allEvents }) => {
           {initialEvent ? 'Save Changes' : 'Add Event'}
         </button>
       </form>
-      <ToastContainer />
     </div>
   );
 };

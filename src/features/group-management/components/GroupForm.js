@@ -2,30 +2,34 @@ import React, { useState, useEffect } from 'react';
 
 const GroupForm = ({ initialGroup, onSave }) => {
   const [name, setName] = useState(initialGroup ? initialGroup.name : '');
-  const [members, setMembers] = useState(initialGroup ? initialGroup.members : '');
+  const [maxMembers, setMaxMembers] = useState(initialGroup ? initialGroup.maxMembers : ''); // Changed from members to maxMembers
   const [permissions, setPermissions] = useState(initialGroup ? initialGroup.permissions : '');
 
   useEffect(() => {
     if (initialGroup) {
       setName(initialGroup.name);
-      setMembers(initialGroup.members);
+      setMaxMembers(initialGroup.maxMembers); // Changed from members to maxMembers
       setPermissions(initialGroup.permissions);
     }
   }, [initialGroup]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !members || !permissions) return;
+    // We only need name and permissions for the backend
+    if (!name || !permissions) return;
 
     const groupData = {
-      id: initialGroup ? initialGroup.id : Date.now(),
+      // id is handled by the backend, so we don't send it.
       name,
-      members: parseInt(members),
       permissions,
+      maxMembers: maxMembers ? parseInt(maxMembers, 10) : null, // Include maxMembers
+      // Description can be added here if needed in the form
+      description: '' 
     };
     onSave(groupData);
+    // Clear form fields
     setName('');
-    setMembers('');
+    setMaxMembers(''); // Clear maxMembers
     setPermissions('');
   };
 
@@ -47,16 +51,16 @@ const GroupForm = ({ initialGroup, onSave }) => {
           />
         </div>
         <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="members">
-            Number of Members
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="maxMembers"> {/* Changed label */}
+            Maximum Number of Members
           </label>
           <input
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="members"
+            id="maxMembers" // Changed id
             type="number"
             placeholder="e.g., 5"
-            value={members}
-            onChange={(e) => setMembers(e.target.value)}
+            value={maxMembers}
+            onChange={(e) => setMaxMembers(e.target.value)}
           />
         </div>
         <div className="mb-4">
