@@ -1,43 +1,78 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getNotifications, createNotification, deleteNotification, markNotificationAsRead } from '../api/notificationApi';
+import { getPendingGroupInvitations, respondToGroupInvitation } from '../api/groupInvitationApi'; // Import new API functions
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useAuth } from '../contexts/AuthContext';
 
 const NotificationsPage = () => {
+  const { auth } = useAuth();
   const [notifications, setNotifications] = useState([]);
+  const [pendingInvitations, setPendingInvitations] = useState([]); // New state for invitations
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = useCallback(async () => {
+    if (!auth || !auth.token) return; // Ensure user is authenticated
+
     try {
       setLoading(true);
-      const response = await getNotifications();
-      if (response.data.success) {
-        setNotifications(response.data.data.items || []);
-      } else {
-        toast.error(response.data.message || "Failed to load notifications.");
+      const [notifResponse, inviteResponse] = await Promise.all([
+        getNotifications(auth.token), // Pass token to API call
+        getPendingGroupInvitations(auth.token) // Fetch pending invitations
+      ]);
+
+      if (notifResponse.data.success) {
+        setNotifications(notifResponse.data.data.items || []);
       }
+
+      if (inviteResponse.data.success) {
+        setPendingInvitations(inviteResponse.data.data.items || []);
+      }
+
     } catch (error) {
-      console.error("Failed to fetch notifications:", error);
-      toast.error(error.response?.data?.message || "Failed to load notifications. Please try again.");
+      console.error("Failed to fetch data:", error);
+      toast.error(error.response?.data?.message || "Failed to load data. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [auth]);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
+  const handleRespondToInvitation = async (invitationId, accept) => {
+    if (!auth || !auth.token) {
+      toast.error('You are not logged in.');
+      return;
+    }
+    try {
+      const response = await respondToGroupInvitation(auth.token, invitationId, accept);
+      if (response.data.success) {
+        toast.success(response.data.message);
+        fetchNotifications(); // Refresh all data
+      } else {
+        toast.error(response.data.message || 'Failed to respond to invitation.');
+      }
+    } catch (error) {
+      console.error('Failed to respond to invitation:', error);
+      toast.error(error.response?.data?.message || 'Failed to respond to invitation.');
+    }
+  };
+
   const addDummyNotification = async () => {
+    if (!auth || !auth.token) {
+      toast.error('You are not logged in.');
+      return;
+    }
     const newNotificationData = {
       message: `New notification at ${new Date().toLocaleTimeString()}`,
-      // UserId: 'some-user-id' // You might want to add a real user ID here
     };
     try {
-      const response = await createNotification(newNotificationData);
+      const response = await createNotification(auth.token, newNotificationData);
       if (response.data.success) {
         toast.success(response.data.message || "Dummy notification added!");
-        fetchNotifications(); // Refresh the list
+        fetchNotifications();
       } else {
         toast.error(response.data.message || "Failed to add dummy notification.");
       }
@@ -49,20 +84,20 @@ const NotificationsPage = () => {
 
   const clearAllNotifications = async () => {
     if (window.confirm("Are you sure you want to clear all notifications? This action cannot be undone.")) {
-      // Backend API for clearing all notifications is not implemented.
-      // For now, we'll just clear them from the UI.
-      // In a real app, you'd loop through and delete each or have a bulk delete API.
-      // For demonstration, we'll just set the state to empty.
       setNotifications([]);
-      toast.success("All notifications cleared from UI.");
-      // You would call a backend API here if available, e.g., deleteAllNotifications();
+      setPendingInvitations([]); // Clear invitations too
+      toast.success("All notifications and invitations cleared from UI.");
     }
   };
 
   const handleDeleteNotification = async (id) => {
+    if (!auth || !auth.token) {
+      toast.error('You are not logged in.');
+      return;
+    }
     if (window.confirm("Are you sure you want to delete this notification?")) {
       try {
-        const response = await deleteNotification(id);
+        const response = await deleteNotification(auth.token, id);
         if (response.data.success) {
           toast.success(response.data.message || "Notification deleted!");
           fetchNotifications();
@@ -77,8 +112,12 @@ const NotificationsPage = () => {
   };
 
   const handleMarkAsRead = async (id) => {
+    if (!auth || !auth.token) {
+      toast.error('You are not logged in.');
+      return;
+    }
     try {
-      const response = await markNotificationAsRead(id);
+      const response = await markNotificationAsRead(auth.token, id);
       if (response.data.success) {
         toast.success(response.data.message || "Notification marked as read!");
         fetchNotifications();
@@ -94,7 +133,7 @@ const NotificationsPage = () => {
   return (
     <div className="container mx-auto p-4 bg-white shadow-lg rounded-lg mt-8">
       <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
-      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Notifications & Reminders</h1>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Notifications & Invitations</h1>
 
       <div className="flex justify-center space-x-4 mb-6">
         <button
@@ -107,41 +146,67 @@ const NotificationsPage = () => {
           onClick={clearAllNotifications}
           className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors duration-200"
         >
-          Clear All Notifications (UI Only)
+          Clear All (UI Only)
         </button>
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-500">Loading notifications...</p>
+        <p className="text-center text-gray-500">Loading data...</p>
       ) : (
         <div className="space-y-4">
-          {notifications.length === 0 ? (
-            <p className="text-center text-gray-500">No notifications yet.</p>
+          {pendingInvitations.length === 0 && notifications.length === 0 ? (
+            <p className="text-center text-gray-500">No notifications or pending invitations yet.</p>
           ) : (
-            notifications.map((notification) => (
-              <div key={notification.id} className={`bg-gray-100 p-4 rounded-lg border border-gray-200 flex justify-between items-center ${notification.isRead ? 'opacity-60' : ''}`}>
-                <div>
-                  <p className="text-gray-800 font-medium">{notification.message}</p>
-                  <p className="text-sm text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p>
-                </div>
-                <div className="space-x-2">
-                  {!notification.isRead && (
+            <>
+              {pendingInvitations.map((invitation) => (
+                <div key={invitation.id} className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 flex justify-between items-center">
+                  <div>
+                    <p className="text-yellow-800 font-medium">Group Invitation: You've been invited to join <span className="font-bold">{invitation.groupName}</span> by <span className="font-bold">{invitation.inviterUsername}</span>.</p>
+                    <p className="text-sm text-yellow-700">Sent on: {new Date(invitation.dateSent).toLocaleString()}</p>
+                  </div>
+                  <div className="space-x-2">
                     <button
-                      onClick={() => handleMarkAsRead(notification.id)}
+                      onClick={() => handleRespondToInvitation(invitation.id, true)}
                       className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm"
                     >
-                      Mark as Read
+                      Accept
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleDeleteNotification(notification.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
-                  >
-                    Delete
-                  </button>
+                    <button
+                      onClick={() => handleRespondToInvitation(invitation.id, false)}
+                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
+                    >
+                      Decline
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+
+              {notifications.map((notification) => (
+                <div key={notification.id} className={`bg-gray-100 p-4 rounded-lg border border-gray-200 flex justify-between items-center ${notification.isRead ? 'opacity-60' : ''}`}>
+                  <div>
+                    <p className="text-gray-800 font-medium">{notification.message}</p>
+                    <p className="text-sm text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div className="space-x-2">
+                    {!notification.isRead && (
+                      <button
+                        onClick={() => handleMarkAsRead(notification.id)}
+                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm"
+                      >
+                        Mark as Read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteNotification(notification.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+              }
+            </>
           )}
         </div>
       )}

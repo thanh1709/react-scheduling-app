@@ -1,51 +1,35 @@
 import React, { useState } from 'react';
 import { loginUser } from '../api/authApi';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 
 const LoginPage = () => {
-  const [userName, setUserName] = useState(''); // Changed from email to userName
+  const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
-  const [successMessage, setSuccessMessage] = useState('');
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
+  const { login } = useAuth(); // Get login function from context
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrors({}); // Clear previous errors
-    setSuccessMessage(''); // Clear previous success message
-
-    // Client-side validation
-    const newErrors = {};
-    if (!userName.trim()) {
-      newErrors.UserName = ['User Name is required.'];
-    }
-    if (!password.trim()) {
-      newErrors.Password = ['Password is required.'];
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+    setErrors({});
 
     try {
       const response = await loginUser({ userName, password });
-      setSuccessMessage(response.data.message || 'Login successful!');
-      console.log('Login successful response:', response.data);
-      // Store the JWT token in localStorage
-      if (response.data.token) {
-        localStorage.setItem('jwtToken', response.data.token);
-        console.log('Token stored in localStorage:', localStorage.getItem('jwtToken'));
+      const { token, roles } = response.data;
+
+      if (token && roles) {
+        login(token, roles); // Use context login function
+        navigate('/'); // Redirect to dashboard
+      } else {
+        setErrors({ general: 'Login failed: No token or roles received.' });
       }
-      // Redirect to dashboard on successful login
-      navigate('/');
+
     } catch (error) {
       if (error.response && error.response.data && error.response.data.errors) {
-        // Backend returns a dictionary of errors (e.g., validation errors)
         setErrors(error.response.data.errors);
-      } else if (error.response && error.response.data && error.response.data.message) {
-        // Backend returns a single message error (e.g., invalid credentials)
-        setErrors({ general: error.response.data.message });
+      } else if (error.response && error.response.status === 401) {
+        setErrors({ general: 'Invalid username or password.' });
       } else {
         setErrors({ general: 'An unexpected error occurred.' });
       }
@@ -110,8 +94,7 @@ const LoginPage = () => {
             </div>
           </div>
 
-          {errors.general && <p className="text-red-500 text-xs mt-2 text-center">{(Array.isArray(errors.general) ? errors.general[0] : errors.general)}</p>} {/* Updated error display */}
-          {successMessage && <p className="text-green-500 text-xs mt-2 text-center">{successMessage}</p>}
+          {errors.general && <p className="text-red-500 text-xs mt-2 text-center">{(Array.isArray(errors.general) ? errors.general[0] : errors.general)}</p>}
 
           <div>
             <button

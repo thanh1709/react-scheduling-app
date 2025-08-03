@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-} from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -13,10 +9,13 @@ import AddUserToGroupPage from './pages/AddUserToGroupPage';
 import UserManagementPage from './pages/UserManagementPage';
 import ProfilePage from './pages/ProfilePage';
 import WeatherPage from './pages/WeatherPage';
-import CreateNotificationPage from './pages/CreateNotificationPage'; // Import CreateNotificationPage
+import CreateNotificationPage from './pages/CreateNotificationPage';
+import MyGroupsPage from './pages/MyGroupsPage'; // New import
+import InviteUserToGroupPage from './pages/InviteUserToGroupPage'; // New import
 import Navbar from './components/Navbar';
-import ProtectedRoute from './components/ProtectedRoute'; // Import ProtectedRoute
-import NotFoundPage from './pages/NotFoundPage'; // Import NotFoundPage
+import ProtectedRoute from './components/ProtectedRoute';
+import NotFoundPage from './pages/NotFoundPage';
+import UnauthorizedPage from './pages/UnauthorizedPage';
 import './external.css';
 
 function App() {
@@ -24,76 +23,28 @@ function App() {
     <Router>
       <div>
         <Navbar />
-
         <Routes>
+          {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
           {/* Protected Routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/group-management"
-            element={
-              <ProtectedRoute>
-                <GroupManagementPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/notifications"
-            element={
-              <ProtectedRoute>
-                <NotificationsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/create-notification"
-            element={
-              <ProtectedRoute>
-                <CreateNotificationPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/add-user-to-group"
-            element={
-              <ProtectedRoute>
-                <AddUserToGroupPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <ProtectedRoute>
-                <UserManagementPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/weather"
-            element={
-              <ProtectedRoute>
-                <WeatherPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'User']}><DashboardPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'User']}><ProfilePage /></ProtectedRoute>} />
+          
+          {/* Staff & Admin Routes */}
+          <Route path="/group-management" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><GroupManagementPage /></ProtectedRoute>} />
+          <Route path="/my-groups" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><MyGroupsPage /></ProtectedRoute>} /> {/* New route */}
+          <Route path="/invite-user-to-group/:groupId" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><InviteUserToGroupPage /></ProtectedRoute>} /> {/* New route */}
+
+          {/* Admin Only Routes */}
+          <Route path="/users" element={<ProtectedRoute allowedRoles={['Admin']}><UserManagementPage /></ProtectedRoute>} />
+
+          {/* Routes for all authenticated users (can be adjusted) */}
+          <Route path="/notifications" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'User']}><NotificationsPage /></ProtectedRoute>} />
+          <Route path="/create-notification" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'User']}><CreateNotificationPage /></ProtectedRoute>} />
+          <Route path="/weather" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'User']}><WeatherPage /></ProtectedRoute>} />
 
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />

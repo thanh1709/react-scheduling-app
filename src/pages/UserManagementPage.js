@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getAllUsers, createUser, updateUser, deleteUser } from '../api/userApi';
+import { getAllUsers, createUser, deleteUser } from '../api/userApi';
+import { updateUserRoleAndInfo } from '../api/authApi';
 import Modal from '../features/scheduling/components/Modal'; // Reusing existing Modal
 import UserForm from '../features/user-management/components/UserForm'; // Will create this
 import { ToastContainer, toast } from 'react-toastify';
@@ -39,13 +40,15 @@ const UserManagementPage = () => {
   const handleSaveUser = async (userData) => {
     try {
       if (selectedUser) {
-        const response = await updateUser(userData.id, userData);
+        // For existing users, use the combined update endpoint
+        const response = await updateUserRoleAndInfo(userData);
         if (response.data.success) {
           toast.success(response.data.message || "User updated successfully!");
         } else {
           toast.error(response.data.message || "Failed to update user.");
         }
       } else {
+        // For new users, use the createUser endpoint
         const response = await createUser(userData);
         if (response.data.success) {
           toast.success(response.data.message || "User created successfully!");
@@ -139,19 +142,21 @@ const UserManagementPage = () => {
                 <tr className="bg-gray-100 border-b">
                   <th className="py-3 px-6 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Username</th>
                   <th className="py-3 px-6 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Email</th>
+                  <th className="py-3 px-6 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Role(s)</th>
                   <th className="py-3 px-6 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {currentUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="py-4 px-6 text-center text-gray-500">No users found.</td>
+                    <td colSpan="4" className="py-4 px-6 text-center text-gray-500">No users found.</td>
                   </tr>
                 ) : (
                   currentUsers.map((user) => (
                     <tr key={user.id}>
                       <td className="py-4 px-6 whitespace-nowrap text-sm font-medium text-gray-900">{user.userName}</td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm text-gray-700">{user.email}</td>
+                      <td className="py-4 px-6 whitespace-nowrap text-sm text-gray-700">{user.roles ? user.roles.join(', ') : 'N/A'}</td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm font-medium">
                         <button onClick={() => handleEditUser(user)} className="text-purple-600 hover:text-purple-900 mr-4">Edit</button>
                         <button onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-900">Delete</button>

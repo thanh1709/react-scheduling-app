@@ -9,11 +9,9 @@ export const getUserById = (userId) => {
 };
 
 export const createUser = (userData) => {
-  return apiClient.post('/ApplicationUsers', userData);
-};
-
-export const updateUser = (userId, userData) => {
-  return apiClient.put(`/ApplicationUsers/${userId}`, userData);
+  // Password is now set on the backend, so we don't send it from here
+  const { newPassword, ...dataWithoutPassword } = userData;
+  return apiClient.post('/ApplicationUsers', dataWithoutPassword);
 };
 
 export const deleteUser = (userId) => {

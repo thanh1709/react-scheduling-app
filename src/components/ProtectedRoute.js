@@ -1,17 +1,24 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
-const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = !!localStorage.getItem('jwtToken'); // Check if token exists
-  console.log('ProtectedRoute: isAuthenticated =', isAuthenticated);
-  console.log('ProtectedRoute: jwtToken =', localStorage.getItem('jwtToken'));
+const ProtectedRoute = ({ children, allowedRoles }) => {
+    const { auth } = useAuth();
+    const location = useLocation();
 
-  if (!isAuthenticated) {
-    // Redirect to login page if not authenticated
-    return <Navigate to="/login" replace />;
-  }
+    if (!auth || !auth.token) {
+        // User is not logged in
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
 
-  return children;
+    const userHasRequiredRole = auth.roles && allowedRoles.some(role => auth.roles.includes(role));
+
+    if (!userHasRequiredRole) {
+        // User is logged in but does not have the required role
+        return <Navigate to="/unauthorized" replace />;
+    }
+
+    return children;
 };
 
 export default ProtectedRoute;
