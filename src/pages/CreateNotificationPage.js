@@ -19,7 +19,7 @@ const CreateNotificationPage = () => {
         message,
         userId: userId || null, // Send null if userId is empty
       };
-      const response = await apiClient.post('/Notifications', notificationData);
+      const response = await apiClient.post('/api/Notifications', notificationData);
       if (response.data.success) { // Check for success property
         toast.success(response.data.message || 'Notification created successfully!');
         setMessage('');

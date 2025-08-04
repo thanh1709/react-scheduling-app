@@ -27,7 +27,7 @@ const InviteUserToGroupPage = () => {
                 return;
             }
             try {
-                const response = await apiClient.get(`/groups/${groupId}`);
+                const response = await apiClient.get(`/api/groups/${groupId}`);
                 if (response.data.success) {
                     setGroupName(response.data.data.name);
                 } else {
@@ -36,8 +36,9 @@ const InviteUserToGroupPage = () => {
                 }
             } catch (err) {
                 console.error('Failed to fetch group details:', err.response || err);
-                setError('Failed to load group details. Please try again.');
-                toast.error('Failed to load group details.');
+                const errorMessage = err.response?.data?.message || 'Failed to load group details. Please try again.';
+                setError(errorMessage);
+                toast.error(errorMessage);
             } finally {
                 setGroupLoading(false);
             }
@@ -49,7 +50,7 @@ const InviteUserToGroupPage = () => {
                 return;
             }
             try {
-                const response = await apiClient.get(`/applicationusers/lookup`);
+                const response = await apiClient.get(`/api/applicationusers/lookup`);
                 if (response.data.success) {
                     setUsers(response.data.data);
                 } else {
@@ -58,8 +59,9 @@ const InviteUserToGroupPage = () => {
                 }
             } catch (err) {
                 console.error('Failed to fetch users:', err.response || err);
-                setError('Failed to load users. Please try again.');
-                toast.error('Failed to load users.');
+                const errorMessage = err.response?.data?.message || 'Failed to load users. Please try again.';
+                setError(errorMessage);
+                toast.error(errorMessage);
             } finally {
                 setUsersLoading(false);
             }
@@ -119,7 +121,8 @@ const InviteUserToGroupPage = () => {
             const errorMessage = err.response?.data?.message || 'Failed to send invitation. Please check the user and try again.';
             setError(errorMessage);
             toast.error(errorMessage);
-        } finally {
+        }
+ finally {
             setLoading(false);
         }
     };

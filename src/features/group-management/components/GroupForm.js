@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 
 const GroupForm = ({ initialGroup, onSave }) => {
   const [name, setName] = useState(initialGroup ? initialGroup.name : '');
@@ -8,28 +9,27 @@ const GroupForm = ({ initialGroup, onSave }) => {
   useEffect(() => {
     if (initialGroup) {
       setName(initialGroup.name);
-      setMaxMembers(initialGroup.maxMembers); // Changed from members to maxMembers
+      setMaxMembers(initialGroup.maxMembers);
       setPermissions(initialGroup.permissions);
     }
   }, [initialGroup]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // We only need name and permissions for the backend
-    if (!name || !permissions) return;
+    if (!name || !permissions) {
+      toast.error('Please fill in all required fields (Group Name, Permissions).');
+      return;
+    }
 
     const groupData = {
-      // id is handled by the backend, so we don't send it.
       name,
       permissions,
-      maxMembers: maxMembers ? parseInt(maxMembers, 10) : null, // Include maxMembers
-      // Description can be added here if needed in the form
+      maxMembers: maxMembers ? parseInt(maxMembers, 10) : null,
       description: '' 
     };
     onSave(groupData);
-    // Clear form fields
     setName('');
-    setMaxMembers(''); // Clear maxMembers
+    setMaxMembers('');
     setPermissions('');
   };
 
@@ -51,12 +51,12 @@ const GroupForm = ({ initialGroup, onSave }) => {
           />
         </div>
         <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="maxMembers"> {/* Changed label */}
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="maxMembers">
             Maximum Number of Members
           </label>
           <input
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="maxMembers" // Changed id
+            id="maxMembers"
             type="number"
             placeholder="e.g., 5"
             value={maxMembers}

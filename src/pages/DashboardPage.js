@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { HubConnectionBuilder } from '@microsoft/signalr';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 import MyCalendar from '../features/scheduling/components/Calendar';
 import EventForm from '../features/scheduling/components/EventForm';
 import Modal from '../features/scheduling/components/Modal';
 import Drawer from '../features/scheduling/components/Drawer';
 import { getEvents, createEvent, updateEvent, deleteEvent } from '../api/eventApi';
 import { getGroups } from '../api/groupApi';
-import { getAllUsers } from '../api/userApi'; // Changed from customerApi
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-
-
+import { getAllUsers } from '../api/userApi';
 
 function DashboardPage() {
+  // 1. State Declarations
   const [events, setEvents] = useState([]);
+  const [allGroups, setAllGroups] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [view, setView] = useState('month');
   const [showModal, setShowModal] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
@@ -20,18 +23,16 @@ function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [eventsPerPage] = useState(5);
-
-  const [allGroups, setAllGroups] = useState([]);
-  const [allUsers, setAllUsers] = useState([]); // Changed from allCustomers
   const [loading, setLoading] = useState(true);
 
+  // 2. Callback Functions
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [eventsRes, groupsRes, usersRes] = await Promise.all([
         getEvents(),
         getGroups(),
-        getAllUsers() // Changed from getCustomers()
+        getAllUsers(),
       ]);
       setEvents(eventsRes.data.data.items.map(event => ({
         ...event,
@@ -39,39 +40,142 @@ function DashboardPage() {
         end: new Date(event.endDate),
       })) || []);
       setAllGroups(groupsRes.data.data.items || []);
-      setAllUsers(usersRes.data.data.items || []); // Corrected to access .items
+      setAllUsers(usersRes.data.data.items || []);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
-      toast.error("Failed to load dashboard data. Please try again.");
+      toast.error(error.response?.data?.message || "Failed to load dashboard data. Please try again.");
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const getGroupName = useCallback((groupId) => {
+    const group = allGroups.find(g => g.id === groupId);
+    return group ? group.name : 'N/A';
+  }, [allGroups]);
+
+  const getUserNames = useCallback((attendeeIds) => {
+    if (!attendeeIds || attendeeIds.length === 0) return 'None';
+    return attendeeIds.map(id => {
+      const user = allUsers.find(u => u.id === id);
+      return user ? user.userName : 'Unknown';
+    }).join(', ');
+  }, [allUsers]);
+
+  // 3. Memoized Values
+  const filteredEvents = useMemo(() => {
+    if (!Array.isArray(events)) return [];
+    return events.filter(event => {
+      const eventTitle = event.title || '';
+      const groupName = getGroupName(event.groupId) || '';
+      const userNames = getUserNames(event.attendees) || '';
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+      return (
+        eventTitle.toLowerCase().includes(lowerCaseSearchTerm) ||
+        groupName.toLowerCase().includes(lowerCaseSearchTerm) ||
+        userNames.toLowerCase().includes(lowerCaseSearchTerm)
+      );
+    });
+  }, [events, searchTerm, getGroupName, getUserNames]);
+
+  // 4. Effect Hooks
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error("SIGNALR_DIAGNOSTIC: No token found. Connection not started.");
+      return;
+    }
+
+    console.log("SIGNALR_DIAGNOSTIC: Token found. Attempting to build connection.");
+
+    const connection = new HubConnectionBuilder()
+      .withUrl(`http://localhost:5066/eventHub?access_token=${token}`)
+      .withAutomaticReconnect()
+      .build();
+
+    // Detailed lifecycle logging
+    connection.onreconnecting(error => {
+      console.warn(`SIGNALR_DIAGNOSTIC: Connection lost. Attempting to reconnect...`, error);
+    });
+
+    connection.onreconnected(connectionId => {
+      console.log(`SIGNALR_DIAGNOSTIC: Connection re-established. Connected with ID: ${connectionId}`);
+    });
+
+    connection.onclose(error => {
+      console.error(`SIGNALR_DIAGNOSTIC: Connection closed due to an error.`, error);
+    });
+
+    // Start the connection
+    connection.start()
+      .then(() => {
+        console.log(`SIGNALR_DIAGNOSTIC: Connection successful! State: ${connection.state}, Connection ID: ${connection.connectionId}`);
+      })
+      .catch(err => {
+        console.error("SIGNALR_DIAGNOSTIC: Failed to connect.", err);
+        if (err.toString().includes("401")) {
+          toast.error("Authentication failed. Please log in again.");
+        } else {
+          toast.error("Could not connect to the real-time server.");
+        }
+      });
+
+    // Main message handler
+    connection.on("ReceiveEventUpdate", (action, data) => {
+      console.log(`SIGNALR_DIAGNOSTIC: Message received. Action: ${action}`, data);
+      toast.info(`Dashboard updated: ${action}`);
+
+      const formatEvent = (event) => ({
+        ...event,
+        start: new Date(event.startDate),
+        end: new Date(event.endDate),
+      });
+
+      switch (action) {
+        case "EventCreated":
+          setEvents(prevEvents => [...prevEvents, formatEvent(data)]);
+          break;
+        case "EventUpdated":
+          setEvents(prevEvents => prevEvents.map(event => 
+            event.id === data.id ? formatEvent(data) : event
+          ));
+          break;
+        case "EventDeleted":
+          setEvents(prevEvents => prevEvents.filter(event => event.id !== data));
+          break;
+        default:
+          console.warn(`SIGNALR_DIAGNOSTIC: Unknown action '${action}'. Falling back to full refresh.`);
+          fetchData();
+          break;
+      }
+    });
+
+    // Cleanup on component unmount
+    return () => {
+      console.log(`SIGNALR_DIAGNOSTIC: Cleaning up connection. Current state: ${connection.state}`);
+      connection.stop();
+    };
+  }, [fetchData]);
+
+  // 5. Event Handlers
   const handleSaveEvent = async (eventData) => {
     try {
       if (selectedEvent) {
-        // Update existing event
         const response = await updateEvent(selectedEvent.id, eventData);
         if (response.data.success) {
-          setEvents(prevEvents => prevEvents.map(e =>
-            e.id === selectedEvent.id ? { ...e, ...eventData, start: new Date(eventData.startDate), end: new Date(eventData.endDate) } : e
-          ));
-          toast.success(response.data.message || "Event updated successfully!");
+          toast.success(response.data.message || "Event update request sent!");
         } else {
           toast.error(response.data.message || "Failed to update event.");
         }
       } else {
-        // Create new event
         const response = await createEvent(eventData);
         if (response.data.success) {
-          const newEvent = response.data.data; // Assuming the API returns the created event
-          setEvents(prevEvents => [...prevEvents, { ...newEvent, start: new Date(newEvent.startDate), end: new Date(newEvent.endDate) }]);
-          toast.success(response.data.message || "Event created successfully!");
+          toast.success(response.data.message || "Event creation request sent!");
         } else {
           toast.error(response.data.message || "Failed to create event.");
         }
@@ -90,8 +194,7 @@ function DashboardPage() {
       try {
         const response = await deleteEvent(eventId);
         if (response.data.success) {
-          setEvents(prevEvents => prevEvents.filter(e => e.id !== eventId));
-          toast.success(response.data.message || "Event deleted successfully!");
+          toast.success(response.data.message || "Event deletion request sent!");
           if (showModal || showDrawer) {
               setShowModal(false);
               setShowDrawer(false);
@@ -112,48 +215,18 @@ function DashboardPage() {
     setShowModal(true);
   };
 
-  const getGroupName = useCallback((groupId) => {
-    const group = allGroups.find(g => g.id === groupId);
-    return group ? group.name : 'N/A';
-  }, [allGroups]);
-
-  const getUserNames = useCallback((attendeeIds) => { // Changed from getCustomerNames
-    if (!attendeeIds || attendeeIds.length === 0) return 'None';
-    return attendeeIds.map(id => {
-      const user = allUsers.find(u => u.id === id); // Changed from allCustomers.find(c => c.id === id)
-      return user ? user.userName : 'Unknown'; // Changed from customer.name
-    }).join(', ');
-  }, [allUsers]); // Changed from allCustomers
-
-  const filteredEvents = useMemo(() => {
-    if (!Array.isArray(events)) return [];
-    return events.filter(event => {
-      const eventTitle = event.title || ''; // Ensure it's a string
-      const groupName = getGroupName(event.groupId) || ''; // Ensure it's a string
-      const userNames = getUserNames(event.attendees) || ''; // Ensure it's a string
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
-
-      return (
-        eventTitle.toLowerCase().includes(lowerCaseSearchTerm) ||
-        groupName.toLowerCase().includes(lowerCaseSearchTerm) ||
-        userNames.toLowerCase().includes(lowerCaseSearchTerm)
-      );
-    });
-  }, [events, searchTerm, getGroupName, getUserNames]); // Changed from getCustomerNames
-
+  // Pagination Logic
   const indexOfLastEvent = currentPage * eventsPerPage;
   const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
   const currentEvents = filteredEvents.slice(indexOfFirstEvent, indexOfLastEvent);
   const totalPages = Math.ceil(filteredEvents.length / eventsPerPage);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
+  // 6. Render Logic
   return (
     <div className="container mx-auto p-4 bg-white shadow-lg rounded-lg mt-8">
       <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
       <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Team Scheduling Dashboard</h1>
-      <div className="mb-8 text-center">
-        <img src="https://via.placeholder.com/800x200/8e2de2/FFFFFF?text=Dashboard+Banner" alt="Dashboard Banner" className="mx-auto rounded-lg shadow-md" />
-      </div>
       
       <div className="flex justify-between items-center mb-6">
         <div className="flex space-x-2">
@@ -198,9 +271,9 @@ function DashboardPage() {
                 {currentEvents.map(event => (
                   <li key={event.id} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-200">
                     <div>
-                      <p className="font-semibold text-gray-900">{event.title}</p>
+                      <p className="font-semibold">{event.title}</p>
                       <p className="text-sm text-gray-600">Group: {getGroupName(event.groupId)}</p>
-                      <p className="text-sm text-gray-600">Attendees: {
+                      <div className="text-sm text-gray-600">Attendees: {
                         event.attendees && event.attendees.length > 0 ? (
                           <div className="flex flex-wrap gap-1 mt-1">
                             {event.attendees.map(attendeeId => {
@@ -215,7 +288,7 @@ function DashboardPage() {
                         ) : (
                           'None'
                         )
-                      }</p>
+                      }</div>
                       <p className="text-sm text-gray-600">{new Date(event.start).toLocaleString()} - {new Date(event.end).toLocaleString()}</p>
                     </div>
                     <div className="space-x-2">

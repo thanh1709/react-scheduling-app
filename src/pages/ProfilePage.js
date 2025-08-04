@@ -19,7 +19,7 @@ const ProfilePage = () => {
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
-        const response = await apiClient.get('/UserProfile/me'); // Assuming this endpoint exists
+        const response = await apiClient.get('/api/UserProfile/me'); // Assuming this endpoint exists
         if (response.data.success) {
           setUser(response.data.data);
           setFormData({
@@ -69,7 +69,7 @@ const ProfilePage = () => {
         updateData.newPassword = formData.newPassword;
       }
 
-      const response = await apiClient.put('/UserProfile/update', updateData); // Assuming this endpoint exists
+      const response = await apiClient.put('/api/UserProfile/update', updateData); // Assuming this endpoint exists
       if (response.data.success) {
         toast.success(response.data.message || 'Profile updated successfully!');
         // Clear password fields after successful update

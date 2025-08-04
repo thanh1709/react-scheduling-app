@@ -5,13 +5,15 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import GroupManagementPage from './pages/GroupManagementPage';
 import NotificationsPage from './pages/NotificationsPage';
-import AddUserToGroupPage from './pages/AddUserToGroupPage';
+
 import UserManagementPage from './pages/UserManagementPage';
 import ProfilePage from './pages/ProfilePage';
 import WeatherPage from './pages/WeatherPage';
 import CreateNotificationPage from './pages/CreateNotificationPage';
 import MyGroupsPage from './pages/MyGroupsPage'; // New import
 import InviteUserToGroupPage from './pages/InviteUserToGroupPage'; // New import
+import AllGroupsPage from './pages/AllGroupsPage';
+import GroupJoinRequestsPage from './pages/GroupJoinRequestsPage';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import NotFoundPage from './pages/NotFoundPage';
@@ -37,6 +39,8 @@ function App() {
           <Route path="/group-management" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><GroupManagementPage /></ProtectedRoute>} />
           <Route path="/my-groups" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><MyGroupsPage /></ProtectedRoute>} /> {/* New route */}
           <Route path="/invite-user-to-group/:groupId" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><InviteUserToGroupPage /></ProtectedRoute>} /> {/* New route */}
+          <Route path="/all-groups" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'User']}><AllGroupsPage /></ProtectedRoute>} />
+          <Route path="/group-join-requests" element={<ProtectedRoute allowedRoles={['Admin', 'Staff']}><GroupJoinRequestsPage /></ProtectedRoute>} />
 
           {/* Admin Only Routes */}
           <Route path="/users" element={<ProtectedRoute allowedRoles={['Admin']}><UserManagementPage /></ProtectedRoute>} />

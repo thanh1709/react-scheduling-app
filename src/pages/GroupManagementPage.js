@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Modal from '../features/scheduling/components/Modal';
 import GroupForm from '../features/group-management/components/GroupForm';
@@ -23,7 +22,7 @@ const GroupManagementPage = () => {
       setGroups(response.data.data.items || []);
     } catch (error) {
       console.error("Failed to fetch groups:", error);
-      toast.error("Failed to load groups. Please try again.");
+      toast.error(error.response?.data?.message || "Failed to load groups. Please try again.");
     } finally {
       setLoading(false);
     }

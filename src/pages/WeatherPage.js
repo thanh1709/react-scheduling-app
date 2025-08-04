@@ -16,7 +16,7 @@ function WeatherPage() {
         setWeatherData(response.data); // Store the received data in the state
       } catch (err) {
         // If an error occurs, save the error message
-        setError(err.message);
+        setError(err.response?.data?.message || err.message);
       } finally {
         // Set loading to false once the request is complete
         setLoading(false);

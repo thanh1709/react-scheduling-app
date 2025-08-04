@@ -26,13 +26,8 @@ const LoginPage = () => {
       }
 
     } catch (error) {
-      if (error.response && error.response.data && error.response.data.errors) {
-        setErrors(error.response.data.errors);
-      } else if (error.response && error.response.status === 401) {
-        setErrors({ general: 'Invalid username or password.' });
-      } else {
-        setErrors({ general: 'An unexpected error occurred.' });
-      }
+      const errorMessage = error.response?.data?.message || 'An unexpected error occurred.';
+      setErrors({ general: errorMessage });
     }
   };
 
@@ -88,7 +83,7 @@ const LoginPage = () => {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-medium text-purple-600 hover:text-purple-500">
+              <a href="/forgot-password" className="font-medium text-purple-600 hover:text-purple-500">
                 Forgot your password?
               </a>
             </div>

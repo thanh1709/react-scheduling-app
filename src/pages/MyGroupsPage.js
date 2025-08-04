@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import GroupMembers from '../components/GroupMembers';
 
 const MyGroupsPage = () => {
     const { auth } = useAuth();
@@ -10,6 +11,7 @@ const MyGroupsPage = () => {
     const [myGroups, setMyGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedGroup, setSelectedGroup] = useState(null);
 
     useEffect(() => {
         const fetchMyGroups = async () => {
@@ -27,8 +29,8 @@ const MyGroupsPage = () => {
                 setMyGroups(response.data.data.items); // Assuming paginated result
             } catch (err) {
                 console.error('Failed to fetch my groups:', err);
-                setError('Failed to load your groups. Please try again later.');
-                toast.error('Failed to load your groups.');
+                setError(err.response?.data?.message || 'Failed to load your groups. Please try again later.');
+                toast.error(err.response?.data?.message || 'Failed to load your groups.');
             } finally {
                 setLoading(false);
             }
@@ -36,6 +38,10 @@ const MyGroupsPage = () => {
 
         fetchMyGroups();
     }, [auth, navigate]);
+
+    const handleSelectGroup = (group) => {
+        setSelectedGroup(group);
+    };
 
     if (loading) {
         return <div className="text-center mt-8">Loading groups...</div>;
@@ -58,12 +64,23 @@ const MyGroupsPage = () => {
                             <p className="text-gray-600 mb-4">{group.description}</p>
                             <button
                                 onClick={() => navigate(`/invite-user-to-group/${group.id}`)}
-                                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-300 mr-2"
                             >
                                 Invite User
                             </button>
+                            <button
+                                onClick={() => handleSelectGroup(group)}
+                                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition duration-300"
+                            >
+                                View Members
+                            </button>
                         </div>
                     ))}
+                </div>
+            )}
+            {selectedGroup && (
+                <div className="mt-8">
+                    <GroupMembers groupId={selectedGroup.id} isOwner={true} />
                 </div>
             )}
         </div>

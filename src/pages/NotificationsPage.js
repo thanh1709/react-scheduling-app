@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getNotifications, createNotification, deleteNotification, markNotificationAsRead } from '../api/notificationApi';
-import { getPendingGroupInvitations, respondToGroupInvitation } from '../api/groupInvitationApi'; // Import new API functions
+import { getPendingJoinRequestCount } from '../api/groupApi'; // Import new API function
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useAuth } from '../contexts/AuthContext';
+import { Link } from 'react-router-dom';
 
 const NotificationsPage = () => {
   const { auth } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [pendingInvitations, setPendingInvitations] = useState([]); // New state for invitations
+  const [pendingJoinRequestCount, setPendingJoinRequestCount] = useState(0); // New state for pending join requests
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = useCallback(async () => {
@@ -16,17 +17,18 @@ const NotificationsPage = () => {
 
     try {
       setLoading(true);
-      const [notifResponse, inviteResponse] = await Promise.all([
-        getNotifications(auth.token), // Pass token to API call
-        getPendingGroupInvitations(auth.token) // Fetch pending invitations
-      ]);
+      const notifResponse = await getNotifications(auth.token); // Pass token to API call
 
       if (notifResponse.data.success) {
         setNotifications(notifResponse.data.data.items || []);
       }
 
-      if (inviteResponse.data.success) {
-        setPendingInvitations(inviteResponse.data.data.items || []);
+      // Fetch pending join request count if the user is a Staff or Admin
+      if (auth.roles.includes('Admin') || auth.roles.includes('Staff')) {
+        const countResponse = await getPendingJoinRequestCount();
+        if (countResponse.data.success) {
+          setPendingJoinRequestCount(countResponse.data.data);
+        }
       }
 
     } catch (error) {
@@ -40,25 +42,6 @@ const NotificationsPage = () => {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
-
-  const handleRespondToInvitation = async (invitationId, accept) => {
-    if (!auth || !auth.token) {
-      toast.error('You are not logged in.');
-      return;
-    }
-    try {
-      const response = await respondToGroupInvitation(auth.token, invitationId, accept);
-      if (response.data.success) {
-        toast.success(response.data.message);
-        fetchNotifications(); // Refresh all data
-      } else {
-        toast.error(response.data.message || 'Failed to respond to invitation.');
-      }
-    } catch (error) {
-      console.error('Failed to respond to invitation:', error);
-      toast.error(error.response?.data?.message || 'Failed to respond to invitation.');
-    }
-  };
 
   const addDummyNotification = async () => {
     if (!auth || !auth.token) {
@@ -85,8 +68,8 @@ const NotificationsPage = () => {
   const clearAllNotifications = async () => {
     if (window.confirm("Are you sure you want to clear all notifications? This action cannot be undone.")) {
       setNotifications([]);
-      setPendingInvitations([]); // Clear invitations too
-      toast.success("All notifications and invitations cleared from UI.");
+      setPendingJoinRequestCount(0); // Clear pending join request count as well
+      toast.success("All notifications cleared from UI.");
     }
   };
 
@@ -130,10 +113,12 @@ const NotificationsPage = () => {
     }
   };
 
+  const isGroupOwner = auth.roles.includes('Admin') || auth.roles.includes('Staff');
+
   return (
     <div className="container mx-auto p-4 bg-white shadow-lg rounded-lg mt-8">
       <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
-      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Notifications & Invitations</h1>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Notifications</h1>
 
       <div className="flex justify-center space-x-4 mb-6">
         <button
@@ -154,33 +139,21 @@ const NotificationsPage = () => {
         <p className="text-center text-gray-500">Loading data...</p>
       ) : (
         <div className="space-y-4">
-          {pendingInvitations.length === 0 && notifications.length === 0 ? (
+          {isGroupOwner && pendingJoinRequestCount > 0 && (
+            <div className="bg-blue-100 p-4 rounded-lg border border-blue-300 flex justify-between items-center">
+              <div>
+                <p className="text-blue-800 font-medium">You have {pendingJoinRequestCount} pending group join request(s).</p>
+              </div>
+              <div>
+                <Link to="/group-join-requests" className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-sm">View Requests</Link>
+              </div>
+            </div>
+          )}
+
+          {notifications.length === 0 && pendingJoinRequestCount === 0 ? (
             <p className="text-center text-gray-500">No notifications or pending invitations yet.</p>
           ) : (
             <>
-              {pendingInvitations.map((invitation) => (
-                <div key={invitation.id} className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 flex justify-between items-center">
-                  <div>
-                    <p className="text-yellow-800 font-medium">Group Invitation: You've been invited to join <span className="font-bold">{invitation.groupName}</span> by <span className="font-bold">{invitation.inviterUsername}</span>.</p>
-                    <p className="text-sm text-yellow-700">Sent on: {new Date(invitation.dateSent).toLocaleString()}</p>
-                  </div>
-                  <div className="space-x-2">
-                    <button
-                      onClick={() => handleRespondToInvitation(invitation.id, true)}
-                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => handleRespondToInvitation(invitation.id, false)}
-                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
-                    >
-                      Decline
-                    </button>
-                  </div>
-                </div>
-              ))}
-
               {notifications.map((notification) => (
                 <div key={notification.id} className={`bg-gray-100 p-4 rounded-lg border border-gray-200 flex justify-between items-center ${notification.isRead ? 'opacity-60' : ''}`}>
                   <div>

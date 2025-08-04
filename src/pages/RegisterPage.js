@@ -20,15 +20,8 @@ const RegisterPage = () => {
       setEmail('');
       setPassword('');
     } catch (error) {
-      if (error.response && error.response.data && error.response.data.errors) {
-        // Backend returns a dictionary of errors
-        setErrors(error.response.data.errors);
-      } else if (error.response && error.response.data && error.response.data.message) {
-        // Backend returns a single message error
-        setErrors({ general: error.response.data.message });
-      } else {
-        setErrors({ general: 'An unexpected error occurred.' });
-      }
+      const errorMessage = error.response?.data?.message || 'An unexpected error occurred.';
+      setErrors({ general: errorMessage });
     }
   };
 

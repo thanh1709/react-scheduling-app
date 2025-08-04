@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getGroupMembers } from '../../../api/groupMemberApi';
-import { getAllUsers } from '../../../api/userApi'; // Import getAllUsers
 
-// Mocking toast for now
-const toast = {
-    success: (message) => console.log(`SUCCESS: ${message}`),
-    error: (message) => console.error(`ERROR: ${message}`),
-};
+import { toast } from 'react-toastify';
 
 const EventForm = ({ initialEvent, onSave, allEvents, allGroups, allUsers }) => { // Changed allCustomers to allUsers
   const [title, setTitle] = useState(initialEvent ? initialEvent.title : '');
@@ -47,7 +42,7 @@ const EventForm = ({ initialEvent, onSave, allEvents, allGroups, allUsers }) => 
       setGroupAttendees(attendeesUsers);
     } catch (error) {
       console.error("Failed to fetch group members:", error);
-      toast.error("Failed to load group members.");
+      toast.error(error.response?.data?.message || "Failed to load group members.");
     } finally {
       setLoadingAttendees(false);
     }

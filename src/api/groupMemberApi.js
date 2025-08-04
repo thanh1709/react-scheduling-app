@@ -6,13 +6,13 @@ import apiClient from './api';
 
 export const addMemberToGroup = (groupMemberData) => {
   // groupMemberData should be an object like { GroupId: '...', UserId: '...' }
-  return apiClient.post('/GroupMembers', groupMemberData);
+  return apiClient.post('/api/GroupMembers', groupMemberData);
 };
 
 export const getGroupMembers = (filterParams) => {
-  return apiClient.get('/GroupMembers', { params: filterParams });
+  return apiClient.get('/api/GroupMembers', { params: filterParams });
 };
 
 export const removeMemberFromGroup = (groupMemberId) => {
-  return apiClient.delete(`/GroupMembers/${groupMemberId}`);
+  return apiClient.delete(`/api/GroupMembers/${groupMemberId}`);
 };

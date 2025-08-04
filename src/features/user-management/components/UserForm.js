@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 
 const UserForm = ({ initialUser, onSave }) => {
   const [userName, setUserName] = useState(initialUser ? initialUser.userName : '');
@@ -24,7 +25,7 @@ const UserForm = ({ initialUser, onSave }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!userName || !email) {
-      alert('Please fill in all required fields (Username, Email).');
+      toast.error('Please fill in all required fields (Username, Email).');
       return;
     }
 
